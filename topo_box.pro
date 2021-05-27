@@ -10,7 +10,8 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = topo_box
 TEMPLATE = app
-
+CONFIG += c++11
+CONFIG += resource_big
 # The following define makes your compiler emit warnings if you use
 # any feature of Qt which as been marked as deprecated (the exact warnings
 # depend on your compiler). Please consult the documentation of the
@@ -28,6 +29,7 @@ SOURCES += \
     WTraffic.cpp \
     dialogplaysimulator.cpp \
     dialogresult.cpp \
+    loader.cpp \
         main.cpp \
         mainwindow.cpp \
     Fiber.cpp \
@@ -64,6 +66,7 @@ HEADERS += \
     WTraffic.h \
     dialogplaysimulator.h \
     dialogresult.h \
+    loader.h \
         mainwindow.h \
     Fiber.h \
     FiberLink.h \

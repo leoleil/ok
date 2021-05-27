@@ -39,7 +39,7 @@ FiberLink * Weaver::addLink(string name, string id, double length, size_t size, 
 
 void Weaver::deleteNode(int i) {
     delete mPhysicalNodes.at(i);
-    mPhysicalNodes.erase(mPhysicalNodes.cbegin() + i);
+    mPhysicalNodes.erase(mPhysicalNodes.begin() + i);
 }
 
 void Weaver::deleteLink(int i) {
@@ -89,6 +89,10 @@ vector<WGraph*>& Weaver::virtualSlices() {
 
 vector<VirtualNode*>& Weaver::virtualNodes() {
     return mVirtualNodes;
+}
+
+vector<VirtualLink *> &Weaver::virtualLinks() {
+    return mVirtualLinks;
 }
 
 void Weaver::serialize(ofstream & ofs) const {

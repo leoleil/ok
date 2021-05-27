@@ -3,6 +3,7 @@
 #include <QMainWindow>
 #include <QGraphicsScene>
 #include <QWebChannel>
+#include <QTreeWidgetItem>
 #include "Weaver.h"
 #include "Simulator.h"
 #include "dialogaddnode.h"
@@ -64,6 +65,10 @@ private:
     void toJsVNodeShow();
     // 更新虚拟链路到web
     void toJsVLinkShow();
+    // 激活节点
+    void activeNodeTree(int id);
+    // 激活链路
+    void activeLinkTree(int id);
 };
 
 #endif // MAINWINDOW_H

@@ -12,11 +12,9 @@ function init()
 {
     if (typeof qt != 'undefined')
     {
-        new QWebChannel(qt.webChannelTransport, function(channel)
-        {
+        new QWebChannel(qt.webChannelTransport, function(channel){
             context = channel.objects.bmapBridge;
-        }
-        );
+        });
     }
     else
     {
@@ -106,7 +104,6 @@ var line = {
     name: '光纤链路',
     type: 'lines',
     coordinateSystem: 'bmap',
-    polyline: true,
     large: true,
     effect: {
         show: true,
@@ -861,6 +858,10 @@ var anchor = {
 // 绘线
 var paintLine = (params) => {
     //console.log(anchor);
+    if(typeof context != 'undefined')
+    {
+        context.setCoordinate(params.point.lng, params.point.lat);
+    }
     if (anchor.haveChoose) {
         option = myChart.getOption();
         lineData = option.series[1].data;
@@ -951,12 +952,38 @@ var dropAnchor = (params) => {
         }
     }
 }
+// 激活节点
+var activeNode = (id) =>{
+    if(typeof context == 'undefined')
+    {
+        console.log("context 未激活");
+    }else{
+        context.activeNode(id);
+    }
+}
+var activeLink = (id) =>{
+    if(typeof context == 'undefined')
+    {
+        console.log("context 未激活");
+    }else{
+        context.activeLink(id);
+    }
+}
 // echarts对象单击节点事件监听
 myChart.on('click', (params) => {
     console.log(params);
-    if (params.componentType == "series" && params.componentSubType == "effectScatter") {
+    if(params.componentType == "series" && params.seriesIndex == 0){
         dropAnchor(params);// 落下锚点
+        activeNode(params.dataIndex);
     }
+    if(params.componentType == "series" && params.seriesIndex == 1){
+        activeLink(params.dataIndex);
+    }
+});
+// 覆盖事件
+myChart.on('mouseover',(params) => {
+    console.log(params);
+    
 });
 // 接收qt的更新Nodes请求
 function upDateNodes(params){

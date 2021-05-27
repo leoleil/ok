@@ -20,6 +20,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    ui->dockWidgetLink->close();
+    ui->dockWidgetNode->close();
     // 节点添加对话框
     dialogAddNode = new DialogAddNode(this);
     dialogAddNode->close();
@@ -39,18 +41,24 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(dialogAddNode, &DialogAddNode::createNode, this, &MainWindow::createNode);
     // 链路添加事件
     connect(dialogAddFiberLink, &DialogAddFiberLink::createFiberLink, this, &MainWindow::createFiberLink);
+    // 更新事件
+    //connect(ui->dockWidgetNode, &QDockWidget::)
     // web可视化初始化
     webChannel = new QWebChannel(ui->webWidget->page());
     bmapBridge = new BmapBridge(this);
     webChannel->registerObject(QStringLiteral("bmapBridge"), bmapBridge);
     ui->webWidget->page()->setWebChannel(webChannel);
+
     // 连接 web
-    connect(bmapBridge, &BmapBridge::setCoordinateSignal, this,[=](QString x, QString y){
-        ui->statusBar->showMessage("x:" + x + " y:" + y, 10000);
-    });
     connect(bmapBridge, &BmapBridge::createNodeSignal, this, &MainWindow::createNode);
     connect(bmapBridge, &BmapBridge::createFiberLinkSignal, this, &MainWindow::createFiberLink);
-    ui->webWidget->load(QUrl("qrc:/web/map.html"));
+    connect(bmapBridge, &BmapBridge::activeNodeSignal, this, &MainWindow::activeNodeTree);
+    connect(bmapBridge, &BmapBridge::activeLinkSignal, this, &MainWindow::activeLinkTree);
+    connect(bmapBridge, &BmapBridge::setCoordinateSignal, this, [=](QString lon,QString lat){
+        ui->statusBar->showMessage("x:" + lon + " y:" + lat, 3000);
+    });
+
+    ui->webWidget->load(QUrl("http://mcspace.icu/qt/web/map.html"));
 }
 
 MainWindow::~MainWindow()
@@ -71,6 +79,10 @@ void MainWindow::on_actionLinks_view_triggered()
 void MainWindow::on_actionOpenProject_triggered()
 {
     QString s = QFileDialog::getOpenFileName(this, QString(), "*.weaver");
+    if(s == ""){
+        qDebug() << "no file";
+        return;
+    }
     qDebug() << s.toUtf8().data();
     ifstream ifs(s.toUtf8().data());
     weaver = Weaver();// 清理原来的
@@ -121,6 +133,7 @@ void MainWindow::nodesTreeShow()
         item->setText(0, QtAdapter::str2qstr(weaver.getNode(i).name()));// 节点名称
         item->setData(1, Qt::EditRole, QVariant(weaver.getNode(i).x()));// x坐标
         item->setData(2, Qt::EditRole, QVariant(weaver.getNode(i).y()));// y坐标
+        item->setIcon(3, QIcon(":/img/删除.png"));
     }
     // 设置双击可编辑
     connect(nodeTree, &QTreeWidget::itemDoubleClicked, this, [=](QTreeWidgetItem* item, int column){
@@ -139,6 +152,20 @@ void MainWindow::nodesTreeShow()
             weaver.getNode(index).move(item->data(1, Qt::EditRole).toDouble(), item->data(2, Qt::EditRole).toDouble());
         default:
             break;
+        }
+        toJsNodeShow();
+    });
+    // 设置单击更删除图标删除网元
+    connect(nodeTree, &QTreeWidget::itemClicked, this, [=](QTreeWidgetItem* item, int column){
+        if(column == 3){
+            int index = nodeTree->indexOfTopLevelItem(item);// 获取坐标
+            qDebug() << index;
+            if(index != -1){
+                weaver.deleteNode(index);
+                nodesTreeShow();// 刷新
+                toJsNodeShow();
+            }
+
         }
     });
 }
@@ -160,6 +187,7 @@ void MainWindow::linksTreeShow()
         item->setData(3, Qt::EditRole, QVariant(weaver.getLink(i).length()));// 长度
         item->setData(4, Qt::EditRole, QVariant(weaver.getLink(i).size()));// 光纤数量
         item->setIcon(5, icon2);// 更多
+        item->setIcon(6, QIcon(":/img/删除.png"));
     }
     // 设置双击可编辑
     connect(linkTree, &QTreeWidget::itemDoubleClicked, this, [=](QTreeWidgetItem* item, int column){
@@ -186,15 +214,26 @@ void MainWindow::linksTreeShow()
         default:
             break;
         }
+        toJsLinkShow();
     });
     // 设置单击更多图标显示更多对话框
     connect(linkTree, &QTreeWidget::itemClicked, this, [=](QTreeWidgetItem* item, int column){
         if(column == 5){
-            size_t index = linkTree->indexOfTopLevelItem(item);// 获取坐标
-            delete dialogLinkRes;
-            dialogLinkRes = new DialogLinkRes(this);
-            dialogLinkRes->load(weaver.getLink(index));
-            dialogLinkRes->show();
+            int index = linkTree->indexOfTopLevelItem(item);// 获取坐标
+            if(index != -1){
+                delete dialogLinkRes;
+                dialogLinkRes = new DialogLinkRes(this);
+                dialogLinkRes->load(weaver.getLink(index));
+                dialogLinkRes->show();
+            }
+        }
+        if(column == 6){
+            int index = linkTree->indexOfTopLevelItem(item);// 获取坐标
+            if(index != -1){
+                weaver.deleteLink(index);
+                linksTreeShow();// 刷新
+                toJsLinkShow();
+            }
         }
     });
 }
@@ -270,18 +309,18 @@ void MainWindow::toJsVNodeShow()
 
 void MainWindow::toJsVLinkShow()
 {
-    /*
     // 以追加的形式添加虚拟链路
     ui->webWidget->page()->runJavaScript(QString("vLinksClear();"));// 清理原来的
     size_t offSize = 1000;
+    size_t size = weaver.virtualLinks().size();
     for(size_t k = 0; k < weaver.virtualLinks().size(); k += offSize){
         QString str = "[";
         bool flag = true;
         size_t limit = k + offSize;
-        for(size_t i = k; i < weaver.virtualLinks().size() && i < limit; i+=10){
+        for(size_t i = k; i < weaver.virtualLinks().size() && i < limit; i++){
             if(flag){
                 flag = false;
-                str = str + QString("{fromName: '%1',toName: '%2',coords: [[%3,%4], [%5,%6]], name:'%7-%8'}")
+                str = str + QString("{fromName: '%1',toName: '%2',coords: [[%3,%4], [%5,%6]], name:'%7-%8', lineStyle:{curveness:%9}}")
                     .arg(QtAdapter::str2qstr(weaver.virtualLinks()[i]->fromPtr()->name()))
                     .arg(QtAdapter::str2qstr(weaver.virtualLinks()[i]->toPtr()->name()))
                     .arg(weaver.virtualLinks()[i]->fromPtr()->x())
@@ -289,10 +328,11 @@ void MainWindow::toJsVLinkShow()
                     .arg(weaver.virtualLinks()[i]->toPtr()->x())
                     .arg(weaver.virtualLinks()[i]->toPtr()->y())
                     .arg(QtAdapter::str2qstr(weaver.virtualLinks()[i]->name()))
-                    .arg(i);
+                    .arg(i)
+                    .arg(i/size);
 
             }else{
-                str = str + QString(",{fromName: '%1',toName: '%2',coords: [[%3,%4], [%5,%6]], name:'%7-%8'}")
+                str = str + QString(",{fromName: '%1',toName: '%2',coords: [[%3,%4], [%5,%6]], name:'%7-%8', lineStyle:{curveness:%9}}")
                     .arg(QtAdapter::str2qstr(weaver.virtualLinks()[i]->fromPtr()->name()))
                     .arg(QtAdapter::str2qstr(weaver.virtualLinks()[i]->toPtr()->name()))
                     .arg(weaver.virtualLinks()[i]->fromPtr()->x())
@@ -300,7 +340,8 @@ void MainWindow::toJsVLinkShow()
                     .arg(weaver.virtualLinks()[i]->toPtr()->x())
                     .arg(weaver.virtualLinks()[i]->toPtr()->y())
                     .arg(QtAdapter::str2qstr(weaver.virtualLinks()[i]->name()))
-                    .arg(i);
+                    .arg(i)
+                    .arg(i/size);
             }
         }
 
@@ -308,7 +349,7 @@ void MainWindow::toJsVLinkShow()
         ui->webWidget->page()->runJavaScript(QString("addEndDateVLinks(%1);").arg(str));
     }
     qDebug() << "v-link finish";
-    */
+    /*
     ui->webWidget->page()->runJavaScript(QString("vLinksClear();"));// 清理原来的
     QString str = "[";
     bool flag = true;
@@ -338,6 +379,21 @@ void MainWindow::toJsVLinkShow()
     str = str + "]";
     qDebug() << str;
     ui->webWidget->page()->runJavaScript(QString("addEndDateVLinks(%1);").arg(str));
+    */
+}
+
+void MainWindow::activeNodeTree(int id)
+{
+    qDebug() << "ook";
+    qDebug() << id;
+    QTreeWidget* nodeTree = ui->treeWidgetNode;
+    nodeTree->setItemSelected(nodeTree->topLevelItem(id), true);
+}
+
+void MainWindow::activeLinkTree(int id)
+{
+    QTreeWidget* linkTree = ui->treeWidgetLink;
+    linkTree->setItemSelected(linkTree->topLevelItem(id), true);
 }
 
 void MainWindow::on_actionAdd_link_triggered()

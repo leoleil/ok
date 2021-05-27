@@ -126,5 +126,7 @@
         <file>web/map/js/province/yunnan.js</file>
         <file>web/map/js/province/zhejiang.js</file>
         <file>img/狗狗.png</file>
+        <file>img/insta.gif</file>
+        <file>img/删除.png</file>
     </qresource>
 </RCC>
